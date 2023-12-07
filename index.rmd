@@ -6,6 +6,13 @@ output: html_document
 editor_options: 
   chunk_output_type: console
 ---
+# Introduction
+
+The biodiversity of marine ecosystems is a complex and dynamic attribute, critically influenced by various environmental factors. This research is dedicated to a comprehensive analysis of how different environmental variables, including raft volume, distance from shore, and water quality, affect the biodiversity associated with these Sargassum rafts. Through rigorous data analysis, we aim to shed light on the patterns and relationships that define these unique marine environments.
+
+Utilizing a dataset encompassing various measurements and observations related to Sargassum rafts and the associated macrofauna, we will explore several hypotheses. Each hypothesis targets specific aspects of the interaction between environmental conditions and biodiversity. Our findings are expected to contribute to the broader understanding of marine biodiversity dynamics, particularly in the context of floating seaweed ecosystems.
+
+---
 
 ```{r setup, include=FALSE}
 # Load libraries
@@ -28,11 +35,15 @@ raft_data <- read_csv("C:/Users/bradd/OneDrive - University of the Virgin Island
 View(raft_data)
 
 ```
-# shoreline_data <- read_csv("C:/Users/bradd/OneDrive - University of the Virgin Islands/UVI/Fall 2023/GIS/Final/Shoreline_Data.csv")
+
+## Data Set Up 
+
+### Calculating Raft Volume
 ```{r Calculating Raft Volume}
 raft_data$Volume <- raft_data$Length * raft_data$Width * raft_data$Thickness
 ```
 
+### Calculating Biodiversity 
 ```{r Calculating Biodiversity}
 
 # Aggregate species counts per raft
@@ -57,49 +68,27 @@ raft_biodiversity <- raft_biodiversity %>%
 raft_bio <- merge(raft_data, raft_biodiversity, by = "Site")
 ```
 
-# ```{r Calculating Distance From Shore}
-# 
-# # Assuming raft_data contains raft coordinates and a Beach
-# 
-# # Function to calculate the nearest distance from a raft to its beach's shoreline
-# calculate_nearest_distance <- function(raft_lat, raft_lon, Beach, shoreline_data) {
-#   raft_point <- cbind(raft_lon, raft_lat)
-#   shore_points <- subset(shoreline_data, Beach == Beach)
-#   shore_matrix <- cbind(shore_points$Longitude, shore_points$Latitude)
-#   
-#   # Calculate distances to all shore points for the beach and find the minimum
-#   distances <- distHaversine(raft_point, shore_matrix)
-#   min_distance <- min(distances)
-#   return(min_distance)
-# }
-# 
-# # Apply the function to each row in raft_data
-# raft_data <- raft_data %>%
-#   rowwise() %>%
-#   mutate(Distance_To_Shore = calculate_nearest_distance(Latitude, Longitude, Beach, shoreline_data))
-# 
-# # Now raft_data includes Distance_To_Shore for each raft
-# ```
+## Hypothesis 1: The Relationship Between Sargassum Raft Volume/Type and Biodiversity {.tabset}
 
-# ```{r Calculate Water Quality Index}
-# 
-# ```
+### Volume vs. Biodiversity - Correlation
 
-```{r Hypothesis 1 Correlation: Raft Volume vs. Biodiversity }
-
-# Correlation analysis between Volume and Shannon Index
-cor.test(raft_bio$Volume, raft_bio$Shannon_Index)
-
-# Save the result
+#### Methods
+```{r Correlation}
 correlation_result <- cor.test(raft_bio$Volume, raft_bio$Shannon_Index)
+```
 
-# Print the results
+#### Results
+```{r}
 correlation_result
 ```
 
-```{r Hypothesis 1 ANOVA: Raft Type vs. Biodiversity - normally distributed}
+### Raft Type vs. Biodiversity - Normal - ANOVA
 
-# Checking assumptions for ANOVA
+#### Methods
+
+- Check Assumptions
+
+```{r}
 # Normality check
 normal_check <- ggplot(raft_bio, aes(x = Raft_Type, y = Shannon_Index)) + 
   geom_boxplot() +
@@ -108,37 +97,53 @@ normal_check <- ggplot(raft_bio, aes(x = Raft_Type, y = Shannon_Index)) +
 
 #Print the Results
 normal_check
+```
 
+Figure 1: QQ plot to assess the normality of biodiversity indices across different raft types. The plot facilitates evaluating the assumption of normality, a prerequisite for the ANOVA test.
+```{r}
 # Homogeneity of variances check
 bartlett_anova <- bartlett.test(Shannon_Index ~ Raft_Type, data = raft_bio)
 
 # Print the results
 bartlett_anova
+```
 
-# Perform ANOVA or Kruskal-Wallis Test
-# ANOVA
+- If assumptions are met, run an ANOVA, if not, use Kruskal-Wallis test
+
+```{r ANOVA}
 anova_result <- aov(Shannon_Index ~ Raft_Type, data = raft_bio)
 
 anova_summary <- summary(anova_result)
 
+```
+
+#### Results
+```{r}
 anova_summary
-
-# If ANOVA assumptions are not met, use Kruskal-Wallis test
-
-# Post-hoc analysis if ANOVA is significant
-# (Use if ANOVA result is significant and you want to know which groups differ)
-# if (summary(anova_result)$`Pr(>F)`[1] < 0.05) {
-#   TukeyHSD(anova_result)
-# }
 ```
 
-```{r Hypothesis 1 Kruskal-Wallis: Raft Type vs. Biodiversity - non-normally distributed}
+- Post-hoc analysis if ANOVA is significant
+ (Use if ANOVA result is significant and you want to know which groups differ)
+ if (summary(anova_result)$`Pr(>F)`[1] < 0.05) {
+   TukeyHSD(anova_result)
+ }
+
+### Raft Type vs. Biodiversity - Non-Normal - Kruskal-Wallace
+
+#### Methods 
+```{r Kruskal-Wallace}
 kruskal_result <- kruskal.test(Shannon_Index ~ Raft_Type, data = raft_bio)
-kruskal_result
-
 ```
 
-```{r Hypothesis 1 nMDS: Community Composistion}
+#### Results 
+```{r}
+kruskal_result
+```
+
+### Community Composition - nMDS
+
+#### Methods
+```{r nMDS}
 
 # Prepare a community data matrix
 # Assuming fauna_data has columns 'Site' for rafts and 'Species' for species names
@@ -149,7 +154,10 @@ community_matrix <- fauna_data %>%
 
 # Remove the Site column for nMDS analysis
 community_matrix <- select(community_matrix, -Site)
+```
 
+##### Results
+```{r echo=TRUE, message=FALSE, warning=FALSE, results='hide', fig.cap="Figure 2: Non-metric multidimensional scaling plot depicting the community composition of macrofauna associated with Sargassum rafts. The plot illustrates similarities and differences in community structures across various sampling sites."}
 # Run nMDS Analysis
 nmds_results <- metaMDS(community_matrix, distance = "bray", trymax = 100)
 
@@ -161,88 +169,121 @@ text(nmds_results$points[,1], nmds_results$points[,2],
 
 ```
 
-# ```{r Hypothesis 2 ANOVA Assumptions: Raft Volume vs. Beaufort Force}
-# 
-# # Assuming 'raft_bio' is your data frame with BF and Volume
-# # QQ Plot for Biodiversity Index
-# BF_Vol_norm <- ggplot(raft_bio, aes(sample = Volume)) + 
-#   geom_qq() + 
-#   geom_qq_line() +
-#   facet_wrap(~ BF) +
-#   theme_minimal() +
-#   ggtitle("QQ Plot for Raft Volume by Beaufort Scale")
-# 
-# BF_Vol_norm
-# 
-# # Group by Beaufort Scale and apply Shapiro-Wilk test to each group
-# normality_results <- raft_bio %>%
-#   group_by(BF) %>%
-#   summarize(shapiro_p_value = shapiro.test(Volume)$p.value)
-# 
-# # View the results
-# normality_results
-# 
-# # Levene's Test for Volume Index
-# leveneTest(Shannon_Index ~ BF, data = raft_bio)
-# 
-# # Alternatively, Bartlett's Test
-# bartlett.test(Volume ~ BF, data = raft_bio)
-# ```
 
-```{ Hypothesis 2 ANOVA vs. KW: Beaufort Force vs. Volume}
+## Hypothesis 2: The Relationship Between Sargassum Raft Volume/Type, Biodiversity, and Beauforts Force {.tabset}
 
-# ANOVA or Kruskal-Wallis for Raft Volume
-anova_volume <- aov(Volume ~ BF, data = raft_data)
-summary(anova_volume)
+### Raft Volume vs. Beaufort Force - Normal - ANOVA
 
-# If non-normal data, use Kruskal-Wallis
-kruskal_volume <- kruskal.test(Volume ~ BF, data = raft_data)
-kruskal_volume
+#### Methods
+
+- Check Assumptions
+
+```{r echo=TRUE, message=FALSE, warning=FALSE, results='hide', fig.cap="Figure 3: Normality Check for Hypothesis 2. This Quantile-Quantile (QQ) plot assesses the normality of data related to the impact of wind/wave activity on Sargassum raft volume and biodiversity. The plot compares the distribution of sample data against a theoretical normal distribution, helping to validate the assumption of normality required for subsequent ANOVA or regression analyses."}
+
+# Assuming 'raft_bio' is your data frame with BF and Volume
+ # QQ Plot for Biodiversity Index
+ BF_Vol_norm <- ggplot(raft_bio, aes(sample = Volume)) + 
+   geom_qq() + 
+   geom_qq_line() +
+   facet_wrap(~ BF) +
+   theme_minimal() +
+   ggtitle("QQ Plot for Raft Volume by Beaufort Scale")
+ 
+ BF_Vol_norm
+ 
+ # Group by Beaufort Scale and apply Shapiro-Wilk test to each group
+ normality_results <- raft_bio %>%
+   group_by(BF) %>%
+   summarize(shapiro_p_value = shapiro.test(Volume)$p.value)
+ 
+ # View the results
+ normality_results
 ```
 
+```{r}
+# Homogeneity of variances check
+bartlett_anova2 <- bartlett.test(Volume ~ BF, data = raft_bio)
 
+# Print the results
+bartlett_anova2
+```
+
+- If assumptions are met, run an ANOVA, if not, use Kruskal-Wallis test
+
+```{r}
+anova_result2 <- aov(Volume ~ BF, data = raft_bio)
+
+anova_summary2 <- summary(anova_result2)
+
+```
+
+#### Results
+
+```{r}
+anova_summary2
+```
+
+- Post-hoc analysis if ANOVA is significant
+ (Use if ANOVA result is significant and you want to know which groups differ)
+ if (summary(anova_result)$`Pr(>F)`[1] < 0.05) {
+   TukeyHSD(anova_result)
+ }
+ 
+### Raft Volume vs. Beaufort Force - Non-Normal - Kruskal - Wallace
+
+#### Methods 
+```{r}
+kruskal_result2 <- kruskal.test(Volume ~ BF, data = raft_bio)
+```
+
+#### Results 
+```{r}
+kruskal_result2
+```
+
+### Raft Type vs. Beaufort Force - Non-Normal - Chi-square 
+
+#### Methods 
 ```{r Hypothesis 2 Chi-squared: Raft Type vs. Beaufort Force}
 # For raft type, a Chi-squared test might be more appropriate because Raft_Type is a categorical variable
 
 # Assuming Raft_Type is a factor in raft_data
 chisq_test <- chisq.test(table(raft_data$Raft_Type, raft_data$BF))
+```
+
+#### Results 
+```{r}
 chisq_test
 ```
 
-```{r Hypothesis 2 ANOVA Assumptions: Biodiversity vs. Beaufort Force}
+### Biodiversity vs. Beaufort Force - Regression
 
+#### Methods
+
+```{r}
 # Assuming 'raft_bio' is your data frame with BF and Biodiversity
-# Regression Analysis
+
 regression_biodiversity <- lm(Shannon_Index ~ BF, data = raft_bio)
-summary(regression_biodiversity)
 ```
 
-```{r Hypothesis 2 Muliple Regression: Biodiversity vs. Raft Volume vs. Beaufort Force}
+#### Results 
 
-# Multiple Regression Analysis
+```{r}
+summary(regression_biodiversity)
+
+```
+
+### Biodiversity vs. Volume vs. Beaufort Force - Multiple Regression
+
+#### Methods
+
+```{r}
 multiple_regression_model <- lm(Shannon_Index ~ Volume + BF, data = raft_bio)
+```
+
+#### Results 
+
+```{r}
 summary(multiple_regression_model)
 ```
 
-# ```{r Hypothesis 3 Regression: Biodiversity vs. Distance from Shore}
-# # Assuming 'raft_bio' is your data frame that now includes 'Distance_To_Shore' for each raft and 'Shannon_Index' as the biodiversity measure
-# 
-# # Model biodiversity as a function of distance from shore
-# regression_model_h3 <- lm(Shannon_Index ~ Distance_To_Shore, data = raft_bio)
-# 
-# # View the summary of the regression model
-# summary(regression_model_h3)
-# 
-# ```
-
-# ```{r Hypothesis 4 Regression: Water Quality vs. Biodiversity }
-# 
-# #Need to come up with a water quality index
-# # Assuming 'raft_bio' contains 'Water_Quality_Index' and 'Shannon_Index'
-# 
-# # Model biodiversity as a function of water quality
-# regression_model_h4 <- lm(Shannon_Index ~ Water_Quality_Index, data = raft_bio)
-# 
-# # View the summary of the regression model
-# summary(regression_model_h4)
-# ```
