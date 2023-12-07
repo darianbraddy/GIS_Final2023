@@ -1,0 +1,248 @@
+---
+title: "GIS Final"
+author: "Darian"
+date: "2023-12-06"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+# Load libraries
+library(readr)
+library(dplyr)
+library(vegan)  # for diversity function
+library(tidyr)
+library(tidyverse)
+library(ggplot2)
+library(purrr)
+library(car)
+library(geosphere)
+
+#Import Data
+
+fauna_data <- read_csv("C:/Users/bradd/OneDrive - University of the Virgin Islands/UVI/Fall 2023/GIS/Final/Fauna_MetaData.csv")
+View(fauna_data)
+
+raft_data <- read_csv("C:/Users/bradd/OneDrive - University of the Virgin Islands/UVI/Fall 2023/GIS/Final/Filled_Raft_MetaData.csv")
+View(raft_data)
+
+```
+# shoreline_data <- read_csv("C:/Users/bradd/OneDrive - University of the Virgin Islands/UVI/Fall 2023/GIS/Final/Shoreline_Data.csv")
+```{r Calculating Raft Volume}
+raft_data$Volume <- raft_data$Length * raft_data$Width * raft_data$Thickness
+```
+
+```{r Calculating Biodiversity}
+
+# Aggregate species counts per raft
+species_counts <- fauna_data %>%
+  group_by(Site, Species) %>%
+  summarize(Count = n(), .groups = 'drop')
+
+# Spread the data for Shannon-Weiner Index calculation
+species_matrix <- species_counts %>%
+  pivot_wider(names_from = Species, values_from = Count, values_fill = list(Count = 0))
+
+# Calculate Shannon-Weiner Index for each raft
+raft_biodiversity <- species_matrix %>%
+  rowwise() %>%
+  mutate(Shannon_Index = diversity(c_across(-Site), index = "shannon"))
+
+# Select only Site and Shannon_Index
+raft_biodiversity <- raft_biodiversity %>%
+  select(Site, Shannon_Index)
+
+# Merge raft volume data
+raft_bio <- merge(raft_data, raft_biodiversity, by = "Site")
+```
+
+# ```{r Calculating Distance From Shore}
+# 
+# # Assuming raft_data contains raft coordinates and a Beach
+# 
+# # Function to calculate the nearest distance from a raft to its beach's shoreline
+# calculate_nearest_distance <- function(raft_lat, raft_lon, Beach, shoreline_data) {
+#   raft_point <- cbind(raft_lon, raft_lat)
+#   shore_points <- subset(shoreline_data, Beach == Beach)
+#   shore_matrix <- cbind(shore_points$Longitude, shore_points$Latitude)
+#   
+#   # Calculate distances to all shore points for the beach and find the minimum
+#   distances <- distHaversine(raft_point, shore_matrix)
+#   min_distance <- min(distances)
+#   return(min_distance)
+# }
+# 
+# # Apply the function to each row in raft_data
+# raft_data <- raft_data %>%
+#   rowwise() %>%
+#   mutate(Distance_To_Shore = calculate_nearest_distance(Latitude, Longitude, Beach, shoreline_data))
+# 
+# # Now raft_data includes Distance_To_Shore for each raft
+# ```
+
+# ```{r Calculate Water Quality Index}
+# 
+# ```
+
+```{r Hypothesis 1 Correlation: Raft Volume vs. Biodiversity }
+
+# Correlation analysis between Volume and Shannon Index
+cor.test(raft_bio$Volume, raft_bio$Shannon_Index)
+
+# Save the result
+correlation_result <- cor.test(raft_bio$Volume, raft_bio$Shannon_Index)
+
+# Print the results
+correlation_result
+```
+
+```{r Hypothesis 1 ANOVA: Raft Type vs. Biodiversity - normally distributed}
+
+# Checking assumptions for ANOVA
+# Normality check
+normal_check <- ggplot(raft_bio, aes(x = Raft_Type, y = Shannon_Index)) + 
+  geom_boxplot() +
+  geom_jitter(width = 0.2) +
+  theme_minimal()
+
+#Print the Results
+normal_check
+
+# Homogeneity of variances check
+bartlett_anova <- bartlett.test(Shannon_Index ~ Raft_Type, data = raft_bio)
+
+# Print the results
+bartlett_anova
+
+# Perform ANOVA or Kruskal-Wallis Test
+# ANOVA
+anova_result <- aov(Shannon_Index ~ Raft_Type, data = raft_bio)
+
+anova_summary <- summary(anova_result)
+
+anova_summary
+
+# If ANOVA assumptions are not met, use Kruskal-Wallis test
+
+# Post-hoc analysis if ANOVA is significant
+# (Use if ANOVA result is significant and you want to know which groups differ)
+# if (summary(anova_result)$`Pr(>F)`[1] < 0.05) {
+#   TukeyHSD(anova_result)
+# }
+```
+
+```{r Hypothesis 1 Kruskal-Wallis: Raft Type vs. Biodiversity - non-normally distributed}
+kruskal_result <- kruskal.test(Shannon_Index ~ Raft_Type, data = raft_bio)
+kruskal_result
+
+```
+
+```{r Hypothesis 1 nMDS: Community Composistion}
+
+# Prepare a community data matrix
+# Assuming fauna_data has columns 'Site' for rafts and 'Species' for species names
+community_matrix <- fauna_data %>%
+  group_by(Site, Species) %>%
+  summarize(Count = n(), .groups = 'drop') %>%
+  pivot_wider(names_from = Species, values_from = Count, values_fill = list(Count = 0))
+
+# Remove the Site column for nMDS analysis
+community_matrix <- select(community_matrix, -Site)
+
+# Run nMDS Analysis
+nmds_results <- metaMDS(community_matrix, distance = "bray", trymax = 100)
+
+# Plot the nMDS results
+plot(nmds_results$points[,1], nmds_results$points[,2], 
+     xlab="NMDS1", ylab="NMDS2", main="nMDS Plot of Macrofauna Communities")
+text(nmds_results$points[,1], nmds_results$points[,2], 
+     labels = rownames(nmds_results$points), cex = 0.8, pos = 3)
+
+```
+
+# ```{r Hypothesis 2 ANOVA Assumptions: Raft Volume vs. Beaufort Force}
+# 
+# # Assuming 'raft_bio' is your data frame with BF and Volume
+# # QQ Plot for Biodiversity Index
+# BF_Vol_norm <- ggplot(raft_bio, aes(sample = Volume)) + 
+#   geom_qq() + 
+#   geom_qq_line() +
+#   facet_wrap(~ BF) +
+#   theme_minimal() +
+#   ggtitle("QQ Plot for Raft Volume by Beaufort Scale")
+# 
+# BF_Vol_norm
+# 
+# # Group by Beaufort Scale and apply Shapiro-Wilk test to each group
+# normality_results <- raft_bio %>%
+#   group_by(BF) %>%
+#   summarize(shapiro_p_value = shapiro.test(Volume)$p.value)
+# 
+# # View the results
+# normality_results
+# 
+# # Levene's Test for Volume Index
+# leveneTest(Shannon_Index ~ BF, data = raft_bio)
+# 
+# # Alternatively, Bartlett's Test
+# bartlett.test(Volume ~ BF, data = raft_bio)
+# ```
+
+```{ Hypothesis 2 ANOVA vs. KW: Beaufort Force vs. Volume}
+
+# ANOVA or Kruskal-Wallis for Raft Volume
+anova_volume <- aov(Volume ~ BF, data = raft_data)
+summary(anova_volume)
+
+# If non-normal data, use Kruskal-Wallis
+kruskal_volume <- kruskal.test(Volume ~ BF, data = raft_data)
+kruskal_volume
+```
+
+
+```{r Hypothesis 2 Chi-squared: Raft Type vs. Beaufort Force}
+# For raft type, a Chi-squared test might be more appropriate because Raft_Type is a categorical variable
+
+# Assuming Raft_Type is a factor in raft_data
+chisq_test <- chisq.test(table(raft_data$Raft_Type, raft_data$BF))
+chisq_test
+```
+
+```{r Hypothesis 2 ANOVA Assumptions: Biodiversity vs. Beaufort Force}
+
+# Assuming 'raft_bio' is your data frame with BF and Biodiversity
+# Regression Analysis
+regression_biodiversity <- lm(Shannon_Index ~ BF, data = raft_bio)
+summary(regression_biodiversity)
+```
+
+```{r Hypothesis 2 Muliple Regression: Biodiversity vs. Raft Volume vs. Beaufort Force}
+
+# Multiple Regression Analysis
+multiple_regression_model <- lm(Shannon_Index ~ Volume + BF, data = raft_bio)
+summary(multiple_regression_model)
+```
+
+# ```{r Hypothesis 3 Regression: Biodiversity vs. Distance from Shore}
+# # Assuming 'raft_bio' is your data frame that now includes 'Distance_To_Shore' for each raft and 'Shannon_Index' as the biodiversity measure
+# 
+# # Model biodiversity as a function of distance from shore
+# regression_model_h3 <- lm(Shannon_Index ~ Distance_To_Shore, data = raft_bio)
+# 
+# # View the summary of the regression model
+# summary(regression_model_h3)
+# 
+# ```
+
+# ```{r Hypothesis 4 Regression: Water Quality vs. Biodiversity }
+# 
+# #Need to come up with a water quality index
+# # Assuming 'raft_bio' contains 'Water_Quality_Index' and 'Shannon_Index'
+# 
+# # Model biodiversity as a function of water quality
+# regression_model_h4 <- lm(Shannon_Index ~ Water_Quality_Index, data = raft_bio)
+# 
+# # View the summary of the regression model
+# summary(regression_model_h4)
+# ```
